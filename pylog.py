@@ -171,6 +171,9 @@ def pylog_compile(src, arg_info, backend, board, path,
     if debug:
         tester.visit(ast_py)
 
+    print('\n=====================================================')
+    print('starting analyzer ...')
+    print('=====================================================')
     pylog_ir = analyzer.visit(ast_py)
     plnode_link_parent(pylog_ir)
 
@@ -180,6 +183,9 @@ def pylog_compile(src, arg_info, backend, board, path,
         print(pylog_ir)
         print('\n')
 
+    print('\n=====================================================')
+    print('starting typer ...')
+    print('=====================================================')
     typer.visit(pylog_ir)
 
     if debug:
@@ -189,6 +195,9 @@ def pylog_compile(src, arg_info, backend, board, path,
         print('\n')
 
     # transform loop transformation and insert pragmas
+    print('\n=====================================================')
+    print('starting optimizer ...')
+    print('=====================================================')
     optimizer.opt(pylog_ir)
 
     # need to be called since optimizer may insert new nodes when visiting
@@ -209,6 +218,9 @@ def pylog_compile(src, arg_info, backend, board, path,
     # else:
     #     print(f"Directory {project_path} exists! Overwriting... ")
 
+    print('\n=====================================================')
+    print('starting codegen ...')
+    print('=====================================================')
     hls_c = codegen.codegen(pylog_ir, project_path)
 
     if debug:

@@ -1082,3 +1082,20 @@ class Pragma(Node):
 
     attr_names = ('string', )
 
+# class exponential(Node): exp(exp_obj)
+class Exponential(Node):
+    __slots__ = ('exp', 'coord', '__weakref__')
+    def __init__(self, exp=None, coord=None):
+        self.exp = exp
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        if self.exp is not None: nodelist.append(("exp", self.exp))
+        return tuple(nodelist)
+
+    def __iter__(self):
+        if self.exp is not None:
+            yield self.exp
+
+    attr_names = ()

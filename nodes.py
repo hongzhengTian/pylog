@@ -641,6 +641,28 @@ class PLDot(PLNode):
         self.op1 = op1
         self.op2 = op2
 
+class PLNPDot(PLNode):
+    ''' numpy.dot
+    '''
+
+    def __init__(self, target, op1, op2, ast_node=None, config=None):
+        PLNode.__init__(self, ast_node, config)
+        self._fields = ['target', 'op1', 'op2']
+        self.target = target
+        self.op1 = op1
+        self.op2 = op2
+
+class PLExp(PLNode):
+    ''' plexp
+        python: numpy.exp(op1)
+    '''
+
+    def __init__(self, target, op1, ast_node=None, config=None):
+        PLNode.__init__(self, ast_node, config)
+        self._fields = ['target', 'op1']
+        self.target = target
+        self.op1 = op1
+
 def gen_loop_nest(shape, body, source, targets=None):
     if targets:
         assert(len(shape) == len(targets))

@@ -235,6 +235,27 @@ class PLAnalyzer(PLPostorderVisitor):
                             ast_node=node,
                             config=config)
                         node.parent.pl_data = node.pl_data
+                elif node.func.attr == 'exp':
+                    if isinstance(node.parent, ast.Assign):
+                        self.visit(node.parent.targets[0])
+                        target = node.parent.targets[0].pl_data
+                    else:
+                        target = None
+                    node.pl_data = PLExp(target=target,
+                                         op1 = node.args[0].pl_data,
+                                         ast_node=node,
+                                         config=config)
+                elif node.func.attr == 'dot':
+                    if isinstance(node.parent, ast.Assign):
+                        self.visit(node.parent.targets[0])
+                        target = node.parent.targets[0].pl_data
+                    else:
+                        target = None
+                    node.pl_data = PLNPDot(target=target,
+                                        op1=node.args[0].pl_data,
+                                        op2=node.args[1].pl_data,
+                                        ast_node=node,
+                                        config=config)
                 elif node.func.attr in IPinforms.Global_IP_args:
                     #if isinstance(node.parent, ast.Assign):
                     node.pl_data = PLIPcore(

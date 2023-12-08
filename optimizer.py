@@ -283,6 +283,143 @@ class PLOptMapTransformer:
 
         # return stmt[0]
 
+    def visit_PLNPDot(self, node, config=None):
+        op_type = node.op_type
+        op_shape = node.op_shape
+
+        tmp_var = PLVariable('tmp_dot')
+
+        tmp_var.pl_type = PLType(ty=op_type.ty, dim=0)
+        tmp_var.pl_shape = ()
+
+        var_decl = PLVariableDecl(ty=op_type.ty,
+                                  name=tmp_var,
+                                  init=PLConst(0))
+
+        var_decl.pl_type = PLType(ty=op_type.ty, dim=0)
+        var_decl.pl_shape = ()
+
+        op1_subs = self.get_subscript(node.op1, 'i_dot_', config)
+        op2_subs = self.get_subscript(node.op2, 'i_dot_', config)
+
+
+        op1_subs = self.visit(op1_subs, config)
+        op2_subs = self.visit(op2_subs, config)
+
+        op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+        op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
+        op2_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+        op2_subs.pl_shape = tuple(1 for i in range(len(node.op2.pl_shape)))
+
+        mult = PLBinOp(op='*',
+                       left=op1_subs,
+                       right=op2_subs)
+
+        mult.pl_type = PLType(ty=op_type.ty, dim=0)
+        mult.pl_shape = ()
+
+        stmt = [PLAssign(op='+=',
+                         target=tmp_var,
+                         value=mult)]
+
+        stmt[0].pl_type = PLType(ty=op_type.ty, dim=0)
+        stmt[0].pl_shape = ()
+        stmt[0].is_decl = False
+
+        # write back to target
+
+        if node.target:
+            target = node.target
+        elif hasattr(node, 'parent'):
+            target = node.parent.target
+        else:
+            raise NotImplementedError
+
+        write_back = PLAssign(op='=',
+                              target=target,
+                              value=tmp_var)
+        write_back.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+        write_back.pl_shape = ()
+        write_back.is_decl = False
+
+        # the forloop boundary is in reverse order of the dot op shape, except for the last two dimensions
+        # for example, for a 3D matrix, the op shape is (128, 256, 512)
+        # the forloop boundary should be (256, 512, 128), from innermost to outermost
+        # for a 5D matrix, the op shape is (128, 256, 512, 1024, 2048)
+        # the forloop boundary should be (1024, 2048, 128, 256, 512), from innermost to outermost
+        for_dim = len(op_shape)
+        index = [for_dim - 2, for_dim - 1] + list(range(for_dim - 3, -1, -1))
+
+        for i in index:
+            target = PLVariable(f'i_dot_{i}')
+            target.pl_type = PLType('int', 0)
+            target.pl_shape = ()
+
+            if i == for_dim - 1:
+                stmt = [var_decl] + stmt
+                stmt.append(write_back)
+                left_op_subs = stmt[1].body[0].value.left.indices
+                right_op_subs = stmt[1].body[0].value.right.indices
+                if for_dim > 3:
+                    left_op_subs[for_dim - 2].name = f'i_dot_{for_dim - 2}'
+                    right_op_subs[for_dim - 2].name = f'i_dot_{for_dim - 1}'
+                left_op_subs[for_dim - 3].name = f'i_dot_{for_dim - 3}'
+                right_op_subs[for_dim - 3].name = f'i_dot_{for_dim - 2}'
+
+            stmt = [ PLFor(target=target,
+                           iter_dom=PLIterDom(end=PLConst(op_shape[i])),
+                           body=stmt,
+                           orelse=[],
+                           source='dot') ]
+
+        # return [var_decl, stmt[0], write_back]
+        return stmt[0]
+    
+    def visit_PLExp(self, node, config=None):
+        if node.pl_shape == (): # scalar
+            return node
+        else: # array
+            op_type = node.op_type
+            op_shape = node.op_shape
+            tmp_var = PLVariable('tmp_dot')
+
+            tmp_var.pl_type = PLType(ty=op_type.ty, dim=0)
+            tmp_var.pl_shape = ()
+
+            op1_subs = self.get_subscript(node.op1, 'i_exp_', config)
+
+
+            op1_subs = self.visit(op1_subs, config)
+
+            op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+            op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
+
+            exp_op = PLExp(target=node.target, op1=op1_subs)
+
+            exp_op.pl_type = PLType(ty=op_type.ty, dim=0)
+            exp_op.pl_shape = ()
+
+            stmt = [PLAssign(op='=',
+                            target=node.target,
+                            value=exp_op)]
+
+            stmt[0].pl_type = PLType(ty=op_type.ty, dim=0)
+            stmt[0].pl_shape = ()
+            stmt[0].is_decl = False
+
+            for i in range(len(op_shape) - 1, -1, -1):
+                target = PLVariable(f'i_exp_{i}')
+                target.pl_type = PLType('int', 0)
+                target.pl_shape = ()
+
+                stmt = [ PLFor(target=target,
+                            iter_dom=PLIterDom(end=PLConst(op_shape[i])),
+                            body=stmt,
+                            orelse=[],
+                            source='dot') ]
+
+            return stmt[0]
+
     def visit_PLDot(self, node, config=None):
 
         op_type = node.op_type

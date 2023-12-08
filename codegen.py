@@ -474,13 +474,33 @@ class PLCodeGenerator:
                               rvalue=self.visit(node.value, config))
         elif assign_dim > 0:
             assert (not is_in_chaining(node))
-            if isinstance(node.value, (PLConst, PLVariable)):
+            if isinstance(node.value, (PLConst, PLVariable, PLExp)):
                 if isinstance(node.value, PLVariable):
                     rvalue = self.get_subscript(node.value, 'i_asg_', config)
+                    if 'dot' in rvalue.name:
+                        is_dot_product = True
+                        is_exp = False
+                    else:
+                        is_dot_product = False
+                        is_exp = False
+                elif isinstance(node.value, PLExp):
+                    rvalue = self.get_subscript(node.value.op1, 'i_exp_', config)
+                    rvalue = Exponential(rvalue)
+                    is_dot_product = False
+                    is_exp = True
                 else:
                     rvalue = self.visit(node.value, config)
 
-                lvalue = self.get_subscript(node.target, 'i_asg_', config)
+                if is_dot_product:
+                    lvalue = self.get_subscript(node.target, 'i_dot_', config)
+                    # change the last two indices of lvalue according to
+                    # the last one and the second last one of forloop indices
+                    lvalue.subscript.name = f'i_dot_{assign_dim}'
+                    lvalue.name.subscript.name = f'i_dot_{assign_dim - 2}'
+                elif is_exp:
+                    lvalue = self.get_subscript(node.target, 'i_exp_', config)
+                else:
+                    lvalue = self.get_subscript(node.target, 'i_asg_', config)
 
                 stmt = [Assignment(op=node.op,
                                    lvalue=lvalue,
@@ -682,6 +702,15 @@ class PLCodeGenerator:
                                stmt_lst=stmt)]
 
         return stmt[0]
+    
+    def visit_PLExp(self, node, config=None):
+        # check the type of node.op1
+        if isinstance(node.op1, PLVariable):
+            return Exponential(node.op1.name)
+        elif isinstance(node.op1, PLSubscript):
+            return Exponential(node.op1.var.name)
+        else:
+            raise NotImplementedError
 
     # '''TODO'''
     # def visit_PLDot(self, node, config=None):

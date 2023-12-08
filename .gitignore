@@ -3,6 +3,7 @@
 .vscode/
 .DS_Store
 .idea/
+/pylog_projects
 */.DS_Store
 
 

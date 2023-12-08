@@ -1,6 +1,7 @@
 import os
 # If necessary, please modify the following line to your actual PyLog root path
-PYLOG_ROOT_DIR = os.getcwd() # '/home/ubuntu/pylog'
+# PYLOG_ROOT_DIR = os.getcwd() # '/home/ubuntu/pylog'
+PYLOG_ROOT_DIR = '/home/hongzhet/otherProjects/pylog'
 
 # Directory for generated Vitis/Vivado project files
 WORKSPACE = PYLOG_ROOT_DIR + '/pylog_projects'

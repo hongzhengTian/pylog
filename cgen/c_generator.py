@@ -302,6 +302,13 @@ class CGenerator(object):
 
     def visit_PtrDecl(self, n):
         return self._generate_type(n, emit_declname=False)
+    
+    def visit_Exponential(self, n):
+        if isinstance(n.exp, c_ast.ArrayRef):
+            exp_obj = self.visit(n.exp)
+        else:
+            exp_obj = n.exp
+        return 'hls::exp(' + exp_obj + ')'
 
     def _generate_struct_union_enum(self, n, name):
         """ Generates code for structs, unions, and enums. name should be

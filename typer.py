@@ -151,13 +151,22 @@ class PLTyper:
 
         if not hasattr(node, 'pl_type'):  # TODO: What is this for?
             if node.name in ctx:
-                node.pl_type = ctx[node.name][0]
-                node.pl_shape = ctx[node.name][1]
+                if self.debug:
+                    print(f'visit_PLVariable: {node.name} in ctx')
+                    print(f'ctx[node.name]: {ctx[node.name]}')
+                #node.pl_type = ctx[node.name][0]
+                #node.pl_shape = ctx[node.name][1]
+                # the above two lines are commented out because they are not correct
+                node.pl_shape = self.actual_shape(ctx[node.name][1])
+                node.pl_type = PLType(ctx[node.name][0].ty, len(node.pl_shape))
                 # node.pl_ctx   = {}
             else:
                 print(node.name)
                 # breakpoint()
                 raise NameError
+        else:
+            if self.debug:
+                print(f'hasattr(node, pl_type) is True')
 
         # return node.pl_type, node.pl_shape, node.pl_ctx
 
@@ -732,6 +741,34 @@ class PLTyper:
         node.pl_type = map_return_type
         node.pl_shape = map_return_shape
 
+    def visit_PLNPDot(self, node, ctx={}):
+        self.visit(node.op1, ctx)
+        self.visit(node.op2, ctx)
+
+        op1_actual_shape = self.actual_shape(node.op1.pl_shape)
+        op2_actual_shape = self.actual_shape(node.op2.pl_shape)
+
+        # Check if the last two dimensions are compatible for dot product
+        assert (op1_actual_shape[-1] == op2_actual_shape[-2])
+
+        # Determine the op shape
+        # Keep all dimensions from op1, and then add op2's last dimension
+        dot_op_shape = op1_actual_shape + (op2_actual_shape[-1],)
+
+        # Determine the result shape
+        # Keep all dimensions from op1 except the last one, and then add op2's last dimension
+        dot_result_shape = op1_actual_shape[:-1] + (op2_actual_shape[-1],)
+
+        node.op_type = PLType(ty=node.op1.pl_type.ty,
+                              dim=op1_actual_shape)
+        node.op_shape = dot_op_shape
+
+        node.pl_type = PLType(node.op1.pl_type.ty, 0)
+        node.pl_shape = dot_result_shape
+
+        node.return_type = PLType(node.op1.pl_type.ty, 0)
+        node.return_shape = dot_result_shape
+
     def visit_PLDot(self, node, ctx={}):
         self.visit(node.op1, ctx)
         self.visit(node.op2, ctx)
@@ -755,3 +792,19 @@ class PLTyper:
 
     #     if node.attr = 'shape':
     #         node.
+
+    def visit_PLExp(self, node, ctx={}):
+        self.visit(node.op1, ctx)
+        op1_actual_shape = self.actual_shape(node.op1.pl_shape)
+
+        if op1_actual_shape == (): # scalar
+            node.pl_type = ctx[node.op1.name][0]
+            node.pl_shape = ctx[node.op1.name][1]
+        else: # array
+            node.op_type = PLType(ty=node.op1.pl_type.ty,
+                                  dim=op1_actual_shape)
+            node.op_shape = op1_actual_shape
+
+            node.pl_type = PLType(ty=node.op1.pl_type.ty, 
+                                  dim=len(op1_actual_shape))
+            node.pl_shape = op1_actual_shape
