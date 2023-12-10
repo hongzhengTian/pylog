@@ -56,6 +56,7 @@ class PLAnalyzer(PLPostorderVisitor):
         PLPostorderVisitor.__init__(self)
         self.debug = debug
         self.args = {}
+        # self.cnt_Call = 0
 
     # def isLambdaArg(self, node):
     #     assert(isinstance(node, ast.Subscript))
@@ -178,7 +179,31 @@ class PLAnalyzer(PLPostorderVisitor):
 
     def visit_Call(self, node, config=None):
 
-        #        if (config != None) and (config.target != None):
+        # #        if (config != None) and (config.target != None):
+        # print(f'\nin Visit_Call: {node.func}')
+        # print(f'node.args: {node.args}')
+        # print(f'type(node.args): {type(node.args)}')
+        # # check if there is a function call inside the function call
+        # # if so, create a temporary variable to store the result,
+        # # and use the variable as the argument for the outer function call.
+        # print(f'node.parent: {node.parent}')
+        # if isinstance(node.parent, ast.Call) and self.cnt_Call != 0:
+        #     print('This is a function call inside the function call')
+        #     # create a PLAssign node
+        #     tmp_var = PLVariable(f'tmp_{self.cnt_Call}')
+        #     node.pl_data = PLAssign(op='=',
+        #                             target=tmp_var,
+        #                             value=node.pl_data,
+        #                             ast_node=node,
+        #                             config=config)
+        #     return node.pl_data
+        
+        # for arg in node.args:
+        #     if isinstance(arg, ast.Call):
+        #         print('found a function call inside the function call')
+        #         self.cnt_Call += 1
+        #         # visit the inner function call
+        #         self.visit(arg, config)
 
         if hasattr(node, "pl_targets"):
             node.func.pl_targets = node.pl_targets

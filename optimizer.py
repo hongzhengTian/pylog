@@ -53,6 +53,7 @@ class PLOptMapTransformer:
         self.backend = backend
         self.debug = debug
         self.count = 0
+        self.ctx = {}
 
     def visit(self, node, config=None):
         """Visit a node."""
@@ -90,6 +91,15 @@ class PLOptMapTransformer:
                 else:
                     setattr(node, field, new_node)
         return node
+    
+    def get_indice(self, node, orient='left'):
+        if isinstance(node, PLBinOp):
+            if orient == 'left':
+                return self.get_indice(node.left)
+            else:
+                return self.get_indice(node.right)
+        else:
+            return node.indices
 
     def get_subscript(self, op_node, iter_prefix='i',
                       config=None, schedule=None):
@@ -164,6 +174,7 @@ class PLOptMapTransformer:
         return self.filter_none(stmt_list)
 
     def visit_PLVariable(self, node, config=None):
+        self.ctx[node.name] = node
         if (config is not None) and ('arg_map' in config):
             if node.name in config['arg_map']:
                 return config['arg_map'][node.name]
@@ -283,9 +294,62 @@ class PLOptMapTransformer:
 
         # return stmt[0]
 
+    def visit_PLBinOp(self, node, config=None):
+        if isinstance(node.left, PLBinOp):
+            left_subs = self.visit(node.left, config)
+        else:
+            if node.left.pl_type.dim != 0:
+                left_subs = self.get_subscript(node.left, 'i_', config)
+                left_subs = self.visit(left_subs, config)
+                left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
+            else:
+                left_subs = self.visit(node.left, config)
+                left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
+
+        if isinstance(node.right, PLBinOp):
+            right_subs = self.visit(node.right, config)
+        else:
+            if node.right.pl_type.dim != 0:
+                right_subs = self.get_subscript(node.right, 'i_', config)
+                right_subs = self.visit(right_subs, config)
+                right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
+            else:
+                right_subs = self.visit(node.right, config)
+                right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
+
+        binop = PLBinOp(op=node.op,
+                        left=left_subs,
+                        right=right_subs)
+        
+        return binop
+
     def visit_PLNPDot(self, node, config=None):
+
         op_type = node.op_type
         op_shape = node.op_shape
+
+        if node.target.name not in self.ctx:
+            dot_result_var = PLVariable(node.target.name)
+            self.ctx[node.target.name] = node
+
+            dot_result_var.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+            dot_result_var.pl_shape = node.pl_shape
+
+            elts = [PLConst(i) for i in node.pl_shape]
+            array_decl = PLArray(elts, node, config)
+
+            dot_result_decl = PLArrayDecl(ele_type=op_type.ty,
+                                        name=dot_result_var,
+                                        dims=array_decl)
+
+            dot_result_decl.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+            dot_result_decl.pl_shape = node.pl_shape
+        else:
+            dot_result_decl = None
 
         tmp_var = PLVariable('tmp_dot')
 
@@ -299,21 +363,28 @@ class PLOptMapTransformer:
         var_decl.pl_type = PLType(ty=op_type.ty, dim=0)
         var_decl.pl_shape = ()
 
-        op1_subs = self.get_subscript(node.op1, 'i_dot_', config)
-        op2_subs = self.get_subscript(node.op2, 'i_dot_', config)
+        if isinstance(node.op1, PLBinOp): # handle both left and right in PLBinOp
+            op1_subs = self.visit(node.op1, config)
+        else:
+            op1_subs = self.get_subscript(node.op1, 'i_', config)
+            op1_subs = self.visit(op1_subs, config)
+            op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+            op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
+        
+        if isinstance(node.op2, PLBinOp):
+            op2_subs = self.visit(node.op2, config)
+        else:
+            op2_subs = self.get_subscript(node.op2, 'i_', config)
+            op2_subs = self.visit(op2_subs, config)
+            op2_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+            op2_subs.pl_shape = tuple(1 for i in range(len(node.op2.pl_shape)))
 
-
-        op1_subs = self.visit(op1_subs, config)
-        op2_subs = self.visit(op2_subs, config)
-
-        op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
-        op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
-        op2_subs.pl_type = PLType(ty=op_type.ty, dim=0)
-        op2_subs.pl_shape = tuple(1 for i in range(len(node.op2.pl_shape)))
+        mult_op_left = op1_subs
+        mult_op_right = op2_subs
 
         mult = PLBinOp(op='*',
-                       left=op1_subs,
-                       right=op2_subs)
+                       left=mult_op_left,
+                       right=mult_op_right)
 
         mult.pl_type = PLType(ty=op_type.ty, dim=0)
         mult.pl_shape = ()
@@ -351,20 +422,20 @@ class PLOptMapTransformer:
         index = [for_dim - 2, for_dim - 1] + list(range(for_dim - 3, -1, -1))
 
         for i in index:
-            target = PLVariable(f'i_dot_{i}')
+            target = PLVariable(f'i_{i}')
             target.pl_type = PLType('int', 0)
             target.pl_shape = ()
 
             if i == for_dim - 1:
                 stmt = [var_decl] + stmt
                 stmt.append(write_back)
-                left_op_subs = stmt[1].body[0].value.left.indices
-                right_op_subs = stmt[1].body[0].value.right.indices
+                left_op_subs = self.get_indice(stmt[1].body[0].value, 'left')
+                right_op_subs = self.get_indice(stmt[1].body[0].value, 'right')
                 if for_dim > 3:
-                    left_op_subs[for_dim - 2].name = f'i_dot_{for_dim - 2}'
-                    right_op_subs[for_dim - 2].name = f'i_dot_{for_dim - 1}'
-                left_op_subs[for_dim - 3].name = f'i_dot_{for_dim - 3}'
-                right_op_subs[for_dim - 3].name = f'i_dot_{for_dim - 2}'
+                    left_op_subs[for_dim - 2].name = f'i_{for_dim - 2}'
+                    right_op_subs[for_dim - 2].name = f'i_{for_dim - 1}'
+                left_op_subs[for_dim - 3].name = f'i_{for_dim - 3}'
+                right_op_subs[for_dim - 3].name = f'i_{for_dim - 2}'
 
             stmt = [ PLFor(target=target,
                            iter_dom=PLIterDom(end=PLConst(op_shape[i])),
@@ -373,7 +444,7 @@ class PLOptMapTransformer:
                            source='dot') ]
 
         # return [var_decl, stmt[0], write_back]
-        return stmt[0]
+        return [dot_result_decl, stmt[0]]
     
     def visit_PLExp(self, node, config=None):
         if node.pl_shape == (): # scalar
@@ -381,20 +452,37 @@ class PLOptMapTransformer:
         else: # array
             op_type = node.op_type
             op_shape = node.op_shape
-            tmp_var = PLVariable('tmp_dot')
 
-            tmp_var.pl_type = PLType(ty=op_type.ty, dim=0)
-            tmp_var.pl_shape = ()
+            if node.target.name not in self.ctx:
+                tmp_var = PLVariable(node.target.name)
+                self.ctx[node.target.name] = node
 
-            op1_subs = self.get_subscript(node.op1, 'i_exp_', config)
+                tmp_var.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+                tmp_var.pl_shape = node.pl_shape
 
+                elts = [PLConst(i) for i in node.pl_shape]
+                array_decl = PLArray(elts, node, config)
 
-            op1_subs = self.visit(op1_subs, config)
+                var_decl = PLArrayDecl(ele_type=op_type.ty,
+                                        name=tmp_var,
+                                        dims=array_decl)
 
-            op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
-            op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
+                var_decl.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+                var_decl.pl_shape = node.pl_shape
+            else:
+                var_decl = None
 
-            exp_op = PLExp(target=node.target, op1=op1_subs)
+            if isinstance(node.op1, PLBinOp): 
+                op1_subs = self.visit(node.op1, config)
+            else:
+                op1_subs = self.get_subscript(node.op1, 'i_', config)
+                op1_subs = self.visit(op1_subs, config)
+                op1_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+                op1_subs.pl_shape = tuple(1 for i in range(len(node.op1.pl_shape)))
+
+            exp_op_op1 = op1_subs
+
+            exp_op = PLExp(target=node.target, op1=exp_op_op1)
 
             exp_op.pl_type = PLType(ty=op_type.ty, dim=0)
             exp_op.pl_shape = ()
@@ -408,7 +496,7 @@ class PLOptMapTransformer:
             stmt[0].is_decl = False
 
             for i in range(len(op_shape) - 1, -1, -1):
-                target = PLVariable(f'i_exp_{i}')
+                target = PLVariable(f'i_{i}')
                 target.pl_type = PLType('int', 0)
                 target.pl_shape = ()
 
@@ -416,9 +504,9 @@ class PLOptMapTransformer:
                             iter_dom=PLIterDom(end=PLConst(op_shape[i])),
                             body=stmt,
                             orelse=[],
-                            source='dot') ]
+                            source='exp') ]
 
-            return stmt[0]
+            return [var_decl, stmt[0]]
 
     def visit_PLDot(self, node, config=None):
 

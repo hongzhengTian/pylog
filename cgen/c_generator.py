@@ -306,6 +306,8 @@ class CGenerator(object):
     def visit_Exponential(self, n):
         if isinstance(n.exp, c_ast.ArrayRef):
             exp_obj = self.visit(n.exp)
+        elif isinstance(n.exp, c_ast.BinaryOp):
+            exp_obj = self.visit(n.exp)
         else:
             exp_obj = n.exp
         return 'hls::exp(' + exp_obj + ')'

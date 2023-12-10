@@ -484,21 +484,39 @@ class PLCodeGenerator:
                         is_dot_product = False
                         is_exp = False
                 elif isinstance(node.value, PLExp):
-                    rvalue = self.get_subscript(node.value.op1, 'i_exp_', config)
-                    rvalue = Exponential(rvalue)
-                    is_dot_product = False
-                    is_exp = True
+                    if isinstance(node.value.op1, PLBinOp):
+                        # if node.value.op1.right.pl_shape != ():
+                        #     rvalue_left = self.get_subscript(node.value.op1.left, 'i_asg_', config)
+                        # else:
+                        #     rvalue_left = node.value.op1.left
+                        # if node.value.op1.right.pl_shape != ():
+                        #     rvalue_right = self.get_subscript(node.value.op1.right, 'i_asg_', config)
+                        # else:
+                        #     rvalue_right = node.value.op1.right
+                        # rvalue = BinaryOp(op=node.value.op1.op,
+                        #                   left=rvalue_left,
+                        #                   right=rvalue_right)
+                        rvalue = self.visit(node.value.op1, config)
+                        rvalue = Exponential(rvalue)
+                        is_dot_product = False
+                        is_exp = True
+
+                    else:
+                        rvalue = self.get_subscript(node.value.op1, 'i_', config)
+                        rvalue = Exponential(rvalue)
+                        is_dot_product = False
+                        is_exp = True
                 else:
                     rvalue = self.visit(node.value, config)
 
                 if is_dot_product:
-                    lvalue = self.get_subscript(node.target, 'i_dot_', config)
+                    lvalue = self.get_subscript(node.target, 'i_', config)
                     # change the last two indices of lvalue according to
                     # the last one and the second last one of forloop indices
-                    lvalue.subscript.name = f'i_dot_{assign_dim}'
-                    lvalue.name.subscript.name = f'i_dot_{assign_dim - 2}'
+                    lvalue.subscript.name = f'i_{assign_dim}'
+                    lvalue.name.subscript.name = f'i_{assign_dim - 2}'
                 elif is_exp:
-                    lvalue = self.get_subscript(node.target, 'i_exp_', config)
+                    lvalue = self.get_subscript(node.target, 'i_', config)
                 else:
                     lvalue = self.get_subscript(node.target, 'i_asg_', config)
 
