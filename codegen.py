@@ -677,7 +677,14 @@ class PLCodeGenerator:
         return stmts
 
     def visit_PLReturn(self, node, config=None):
-        return Return(expr=self.visit(node.value, config))
+        # only return the value when it is a scalar
+        if isinstance(node.value, list):
+            return None
+        else:
+            if node.value.pl_shape == ():
+                return Return(expr=self.visit(node.value, config))
+            else:
+                return None
 
     '''TODO'''
 

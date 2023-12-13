@@ -9,7 +9,11 @@ import IPinforms
 class PLTyper:
     def __init__(self, args_info, debug=False):
         self.args_info = args_info
+        self.args_info_updated = args_info
         self.debug = debug
+
+    def return_updated_args_info(self):
+        return self.args_info_updated
 
     def visit(self, node, ctx={}, is_statement=False):
         """Visit a node."""
@@ -93,9 +97,13 @@ class PLTyper:
                 self.visit(stmt, local_ctx,
                            is_statement=True)  
                 if isinstance(stmt, PLReturn):
-                    node.return_type = stmt.pl_type
-                    node.return_shape = stmt.pl_shape
-
+                    if stmt.pl_shape == ():
+                        # only when the return value is a scalar, the return
+                        # type is the same as the type of the return value.
+                        # else, the return type is remain void
+                        node.return_type = stmt.pl_type
+                        node.return_shape = stmt.pl_shape
+                    
             node.type_infer_done = True
 
         # return node.pl_type, node.pl_shape, node.pl_ctx
@@ -347,16 +355,43 @@ class PLTyper:
             node.pl_shape = node.target.pl_shape
 
     def visit_PLReturn(self, node, ctx={}):
-        self.visit(node.value, ctx)  
-        if node.value:
-            node.pl_type = node.value.pl_type
-            node.pl_shape = node.value.pl_shape
+        if type(node.value) is list:
+            node_pl_types = []
+            node_pl_shapes = []
+            for each_value in node.value:
+                self.visit(each_value, ctx)
+                node_pl_types.append(each_value.pl_type)
+                node_pl_shapes.append(each_value.pl_shape)
+            node.pl_type = node_pl_types
+            node.pl_shape = node_pl_shapes
         else:
-            node.pl_type = PLType('void', 0)
-            node.pl_shape = ()
+            self.visit(node.value, ctx)  
+            if node.value:
+                node.pl_type = node.value.pl_type
+                node.pl_shape = node.value.pl_shape
+            else:
+                node.pl_type = PLType('void', 0)
+                node.pl_shape = ()
 
-        if self.debug:
-            print(type(node).__name__, ctx)
+            if self.debug:
+                print(type(node).__name__, ctx)
+        # if node's shape is not empty, then it is an array.
+        # to return an array, we add the return value to the function's
+        # arguments list
+        if node.pl_shape != ():
+            # update the args_info in Pylog.
+            # add the args info in the function definition as new arguments as well
+            if type(node.value) is list:
+                for each_value in node.value:
+                    self.args_info_updated[each_value.name] = \
+                        (each_value.pl_type.ty, each_value.pl_shape)
+                    node.parent.args.append(each_value)
+            else:
+                self.args_info_updated[node.value.name] = \
+                    (node.value.pl_type.ty, node.value.pl_shape)
+                node.parent.args.append(node.value)
+
+
 
         # return node.pl_type, node.pl_shape, node.pl_ctx
 

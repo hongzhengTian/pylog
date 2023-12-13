@@ -191,6 +191,7 @@ def pylog_compile(src, arg_info, backend, board, path,
     print('starting typer ...')
     print('=====================================================')
     typer.visit(pylog_ir)
+    arg_info = typer.return_updated_args_info()
 
     if debug:
         print('\n')
