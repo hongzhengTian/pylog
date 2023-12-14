@@ -281,6 +281,37 @@ class PLAnalyzer(PLPostorderVisitor):
                                         op2=node.args[1].pl_data,
                                         ast_node=node,
                                         config=config)
+                elif node.func.attr == 'max':
+                    if isinstance(node.parent, ast.Assign):
+                        self.visit(node.parent.targets[0])
+                        target = node.parent.targets[0].pl_data
+                    else:
+                        target = None
+
+                    # by default, the axis is the last dimension, and keepdims is True
+                    axis = None
+                    keepdims = False
+
+                    if hasattr(node, "keywords"):
+                        for keyword in node.keywords:
+                            if keyword.arg == "axis":
+                                if isinstance(keyword.value, ast.UnaryOp):
+                                    axis = -keyword.value.operand.value
+                                else:
+                                    axis = keyword.value.value
+                            elif keyword.arg == "keepdims":
+                                keepdims = keyword.value.value
+                            else:
+                                print("Unsupported keyword argument")
+                                raise NotImplementedError
+                            
+                    node.pl_data = PLMax(target=target,
+                                        op = node.args[0].pl_data,
+                                        axis = axis,
+                                        keepdims = keepdims,
+                                        ast_node=node,
+                                        config=config)
+                
                 elif node.func.attr in IPinforms.Global_IP_args:
                     #if isinstance(node.parent, ast.Assign):
                     node.pl_data = PLIPcore(

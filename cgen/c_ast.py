@@ -1099,3 +1099,26 @@ class Exponential(Node):
             yield self.exp
 
     attr_names = ()
+
+# class Compare(Node): op1 op op2? op1 : op2
+class Compare(Node):
+    __slots__ = ('op1', 'op', 'op2', 'coord', '__weakref__')
+    def __init__(self, op1=None, op=None, op2=None, coord=None):
+        self.op1 = op1
+        self.op = op
+        self.op2 = op2
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        if self.op1 is not None: nodelist.append(("op1", self.op1))
+        if self.op2 is not None: nodelist.append(("op2", self.op2))
+        return tuple(nodelist)
+
+    def __iter__(self):
+        if self.op1 is not None:
+            yield self.op1
+        if self.op2 is not None:
+            yield self.op2
+
+    attr_names = ('op', )

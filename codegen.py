@@ -469,7 +469,34 @@ class PLCodeGenerator:
 
         # generate assignment statement
         if assign_dim == 0:
-            asgm = Assignment(op=node.op,
+            if isinstance(node.value, PLCompare):
+                if isinstance(node.value.op1, PLBinOp):
+                    cpr_op_op1 = self.visit(node.value.op1, config)
+                elif node.value.op1.pl_shape != ():
+                    cpr_op_op1 = self.get_subscript(node.value.op1, 'i_', config)
+                else:
+                    cpr_op_op1 = self.visit(node.value.op1, config)
+                    cpr_op_op1 = cpr_op_op1.name
+
+                if isinstance(node.value.op2, PLBinOp):
+                    cpr_op_op2 = self.visit(node.value.op2, config)
+                elif node.value.op2.pl_shape != ():
+                    cpr_op_op2 = self.get_subscript(node.value.op2, 'i_', config)
+                else:
+                    cpr_op_op2 = self.visit(node.value.op2, config)
+                    cpr_op_op2 = cpr_op_op2.name
+
+                cpr_op_op = node.value.op
+
+                rvalue = Compare(op=cpr_op_op,
+                                 op1=cpr_op_op1,
+                                 op2=cpr_op_op2)
+                lvalue = self.get_subscript(node.target, 'i_', config)
+                asgm = Assignment(op=node.op,
+                                  lvalue=lvalue,
+                                  rvalue=rvalue)
+            else:
+                asgm = Assignment(op=node.op,
                               lvalue=target_c_obj,
                               rvalue=self.visit(node.value, config))
         elif assign_dim > 0:
@@ -517,8 +544,8 @@ class PLCodeGenerator:
                     lvalue.name.subscript.name = f'i_{assign_dim - 2}'
                 elif is_exp:
                     lvalue = self.get_subscript(node.target, 'i_', config)
-                else:
-                    lvalue = self.get_subscript(node.target, 'i_asg_', config)
+                else: # thz: here previously is i_asg_ instead of i_, which cause some difficulty in implementation. Why do we need to distinguish the subscript of the target and the value?
+                    lvalue = self.get_subscript(node.target, 'i_', config)
 
                 stmt = [Assignment(op=node.op,
                                    lvalue=lvalue,

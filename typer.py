@@ -843,3 +843,47 @@ class PLTyper:
             node.pl_type = PLType(ty=node.op1.pl_type.ty, 
                                   dim=len(op1_actual_shape))
             node.pl_shape = op1_actual_shape
+
+    def visit_PLMax(self, node, ctx={}):
+        self.visit(node.op, ctx)
+
+        op_actual_shape = self.actual_shape(node.op.pl_shape)
+
+        # Check if the op is a scalar
+        if op_actual_shape == ():
+            print(f'PLMax: {node.op.name} is a scalar!')
+            raise TypeError
+
+        node.op_type = PLType(ty=node.op.pl_type.ty,
+                              dim=op_actual_shape)
+        node.op_shape = op_actual_shape
+
+        # if axis is None, then the result is a scalar.
+        if node.axis is None:
+            node.pl_type = PLType(node.op.pl_type.ty, 0)
+            node.pl_shape = ()
+        else:
+            # if axis is not None, then the result is an array.
+            # check the keepdims
+            if node.keepdims:
+                # if axis is negative number, change it to positive
+                if node.axis < 0:
+                    node.axis = len(op_actual_shape) + node.axis
+
+                node.pl_type = PLType(node.op.pl_type.ty, len(op_actual_shape))
+                # get the new shape
+                new_shape = ()
+                for i in range(len(op_actual_shape)):
+                    if i != node.axis:
+                        new_shape += (op_actual_shape[i],)
+                    else:
+                        new_shape += (1,)
+                node.pl_shape = new_shape
+            else:
+                node.pl_type = PLType(node.op.pl_type.ty, len(op_actual_shape)-1)
+                # get the new shape
+                new_shape = ()
+                for i in range(len(op_actual_shape)):
+                    if i != node.axis:
+                        new_shape += (op_actual_shape[i],)
+                node.pl_shape = new_shape

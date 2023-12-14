@@ -311,6 +311,22 @@ class CGenerator(object):
         else:
             exp_obj = n.exp
         return 'hls::exp(' + exp_obj + ')'
+    
+    def visit_Compare(self, n):
+        # op1 op op2? op1 : op2
+        if isinstance(n.op1, c_ast.ArrayRef):
+            op1 = self.visit(n.op1)
+        elif isinstance(n.op1, c_ast.BinaryOp):
+            op1 = self.visit(n.op1)
+        else:
+            op1 = n.op1
+        if isinstance(n.op2, c_ast.ArrayRef):
+            op2 = self.visit(n.op2)
+        elif isinstance(n.op2, c_ast.BinaryOp):
+            op2 = self.visit(n.op2)
+        else:
+            op2 = n.op2
+        return '(' + op1 + ' ' + n.op + ' ' + op2 + ') ? ' + op1 + ' : ' + op2
 
     def _generate_struct_union_enum(self, n, name):
         """ Generates code for structs, unions, and enums. name should be
