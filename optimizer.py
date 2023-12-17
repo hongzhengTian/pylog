@@ -600,6 +600,91 @@ class PLOptMapTransformer:
 
         # return [var_decl, stmt[0], write_back]
         return [max_result_decl, stmt[0]]
+    
+    def visit_PLSum(self, node, config=None):
+        op_type = node.op_type
+        op_shape = node.op_shape
+
+        if node.target.name not in self.ctx:
+            sum_result_var = PLVariable(node.target.name)
+            self.ctx[node.target.name] = node
+
+            sum_result_var.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+            sum_result_var.pl_shape = node.pl_shape
+
+            elts = [PLConst(i) for i in node.pl_shape]
+            array_decl = PLArray(elts, node, config)
+
+            sum_result_decl = PLArrayDecl(ele_type=op_type.ty,
+                                        name=sum_result_var,
+                                        dims=array_decl)
+
+            sum_result_decl.pl_type = PLType(ty=op_type.ty, dim=node.pl_type.dim)
+            sum_result_decl.pl_shape = node.pl_shape
+        else:
+            sum_result_decl = None
+
+        tmp_var = PLVariable('tmp_sum')
+
+        tmp_var.pl_type = PLType(ty=op_type.ty, dim=0)
+        tmp_var.pl_shape = ()
+
+        var_decl = PLVariableDecl(ty=op_type.ty,
+                                  name=tmp_var,
+                                  init=PLConst(0))
+
+        var_decl.pl_type = PLType(ty=op_type.ty, dim=0)
+        var_decl.pl_shape = ()
+
+        if isinstance(node.op, PLBinOp):
+            op_subs = self.visit(node.op, config)
+        else:
+            op_subs = self.get_subscript(node.op, 'i_', config)
+            op_subs = self.visit(op_subs, config)
+            op_subs.pl_type = PLType(ty=op_type.ty, dim=0)
+            op_subs.pl_shape = tuple(1 for i in range(len(node.op.pl_shape)))
+
+        stmt = [PLAssign(op='+=',
+                            target=tmp_var,
+                            value=op_subs)]
+        
+        stmt[0].pl_type = PLType(ty=op_type.ty, dim=0)
+        stmt[0].pl_shape = ()
+        stmt[0].is_decl = False
+
+        # write back to target
+
+        if node.target:
+            target = node.target
+        elif hasattr(node, 'parent'):
+            target = node.parent.target
+        else:
+            raise NotImplementedError
+        
+        write_back = PLAssign(op='=',
+                                target=target,
+                                value=tmp_var)
+        write_back.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+        write_back.pl_shape = ()
+        write_back.is_decl = False
+
+        for i in range(len(op_shape) - 1, -1, -1):
+            target = PLVariable(f'i_{i}')
+            target.pl_type = PLType('int', 0)
+            target.pl_shape = ()
+
+            if i == len(op_shape) - 2:
+                stmt = [var_decl] + stmt
+                stmt.append(write_back)
+
+            stmt = [ PLFor(target=target,
+                            iter_dom=PLIterDom(end=PLConst(op_shape[i])),
+                            body=stmt,
+                            orelse=[],
+                            source='sum') ]
+            
+        # return [var_decl, stmt[0], write_back]
+        return [sum_result_decl, stmt[0]]
 
     def visit_PLDot(self, node, config=None):
 

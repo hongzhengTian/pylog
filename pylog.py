@@ -21,7 +21,8 @@ from sysgen import PLSysGen
 from runtime import PLRuntime
 import IPinforms
 from chaining_rewriter import PLChainingRewriter
-from op_in_op import OpInOpTransformer
+from ast_pre_trans import OpInOpTransformer
+from ast_pre_trans import ReturnTransformer
 
 PYLOG_KERNELS = dict()
 
@@ -154,7 +155,9 @@ def pylog_compile(src, arg_info, backend, board, path,
     ast_py = ast.parse(src)
     astpretty.pprint(ast_py)
     op_in_op_transformer = OpInOpTransformer()
+    return_transformer = ReturnTransformer()
     op_in_op_transformer.visit(ast_py)
+    return_transformer.visit(ast_py)
     if debug: astpretty.pprint(ast_py)
 
     # add an extra attribute pointing to parent for each node

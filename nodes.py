@@ -665,6 +665,19 @@ class PLMax(PLNode):
         self.axis = axis
         self.keepdims = keepdims
 
+class PLSum(PLNode):
+    '''numpy.sum
+    target = numpy.sum(op, axis=-1, keepdims=True)
+    '''
+
+    def __init__(self, target, op, axis, keepdims, ast_node=None, config=None):
+        PLNode.__init__(self, ast_node, config)
+        self._fields = ['target', 'op', 'axis', 'keepdims']
+        self.target = target
+        self.op = op
+        self.axis = axis
+        self.keepdims = keepdims
+
 class PLCompare(PLNode):
     '''
     target = a >or< b ? a : b
