@@ -49,12 +49,25 @@ class ReturnTransformer(ast.NodeTransformer):
             if isinstance(stmt, ast.Return):
                 if isinstance(stmt.value, (ast.Tuple, ast.List)):
                     # process the return if it is a tuple or list
+                    print("return is a tuple or list")
                     new_vars = []
                     for elem in stmt.value.elts:
-                        temp_var_name, new_stmts = self.process_expression(elem, new_body)
-                        new_vars.append(ast.Name(id=temp_var_name, ctx=ast.Load()))
-                        new_body.extend(new_stmts)
+                        # temp_var_name, new_stmts = self.process_expression(elem, new_body)
+                        # new_vars.append(ast.Name(id=temp_var_name, ctx=ast.Load()))
+                        # new_body.extend(new_stmts)
+                        if not isinstance(elem, ast.Name):  # not a single variable
+                            temp_var_name, new_stmts = self.process_expression(elem, new_body)
+                            new_vars.append(ast.Name(id=temp_var_name, ctx=ast.Load()))
+                            new_body.extend(new_stmts)
+                        else:
+                            new_vars.append(elem)  # keep the original variable
                     stmt.value = ast.Tuple(elts=new_vars, ctx=ast.Load())
+                elif not isinstance(stmt.value, ast.Name):  # single expression, but not a single variable
+                    temp_var_name, new_stmts = self.process_expression(stmt.value, new_body)
+                    stmt.value = ast.Name(id=temp_var_name, ctx=ast.Load())
+                    new_body.extend(new_stmts)
+                elif isinstance(stmt.value, ast.Name):  # single variable
+                    pass
                 else:
                     # else process the return if it is a single value
                     temp_var_name, new_stmts = self.process_expression(stmt.value, new_body)
