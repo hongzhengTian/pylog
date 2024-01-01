@@ -295,37 +295,39 @@ class PLOptMapTransformer:
         # return stmt[0]
 
     def visit_PLBinOp(self, node, config=None):
-        if isinstance(node.left, PLBinOp):
-            left_subs = self.visit(node.left, config)
-        else:
-            if node.left.pl_type.dim != 0:
-                left_subs = self.get_subscript(node.left, 'i_', config)
-                left_subs = self.visit(left_subs, config)
-                left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
-                left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
-            else:
+        if hasattr(node.left, 'pl_type') and hasattr(node.right, 'pl_type'):
+            if isinstance(node.left, PLBinOp):
                 left_subs = self.visit(node.left, config)
-                left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
-                left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
-
-        if isinstance(node.right, PLBinOp):
-            right_subs = self.visit(node.right, config)
-        else:
-            if node.right.pl_type.dim != 0:
-                right_subs = self.get_subscript(node.right, 'i_', config)
-                right_subs = self.visit(right_subs, config)
-                right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
-                right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
             else:
-                right_subs = self.visit(node.right, config)
-                right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
-                right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
+                if node.left.pl_type.dim != 0:
+                    left_subs = self.get_subscript(node.left, 'i_', config)
+                    left_subs = self.visit(left_subs, config)
+                    left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                    left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
+                else:
+                    left_subs = self.visit(node.left, config)
+                    left_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                    left_subs.pl_shape = tuple(1 for i in range(len(node.left.pl_shape)))
 
-        binop = PLBinOp(op=node.op,
-                        left=left_subs,
-                        right=right_subs)
-        
-        return binop
+            if isinstance(node.right, PLBinOp):
+                right_subs = self.visit(node.right, config)
+            else:
+                if node.right.pl_type.dim != 0:
+                    right_subs = self.get_subscript(node.right, 'i_', config)
+                    right_subs = self.visit(right_subs, config)
+                    right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                    right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
+                else:
+                    right_subs = self.visit(node.right, config)
+                    right_subs.pl_type = PLType(ty=node.pl_type.ty, dim=0)
+                    right_subs.pl_shape = tuple(1 for i in range(len(node.right.pl_shape)))
+
+            binop = PLBinOp(op=node.op,
+                            left=left_subs,
+                            right=right_subs)
+            return binop
+        else:
+            pass
 
     def visit_PLNPDot(self, node, config=None):
 

@@ -49,7 +49,6 @@ class ReturnTransformer(ast.NodeTransformer):
             if isinstance(stmt, ast.Return):
                 if isinstance(stmt.value, (ast.Tuple, ast.List)):
                     # process the return if it is a tuple or list
-                    print("return is a tuple or list")
                     new_vars = []
                     for elem in stmt.value.elts:
                         # temp_var_name, new_stmts = self.process_expression(elem, new_body)
@@ -66,13 +65,15 @@ class ReturnTransformer(ast.NodeTransformer):
                     temp_var_name, new_stmts = self.process_expression(stmt.value, new_body)
                     stmt.value = ast.Name(id=temp_var_name, ctx=ast.Load())
                     new_body.extend(new_stmts)
-                elif isinstance(stmt.value, ast.Name):  # single variable
-                    pass
-                else:
-                    # else process the return if it is a single value
-                    temp_var_name, new_stmts = self.process_expression(stmt.value, new_body)
-                    stmt.value = ast.Name(id=temp_var_name, ctx=ast.Load())
-                    new_body.extend(new_stmts)
+                # elif isinstance(stmt.value, ast.Name):  # single variable
+                #     print("return is a single variable")
+                #     pass
+                # else:
+                #     # else process the return if it is a single value
+                #     print("return is a single value")
+                #     temp_var_name, new_stmts = self.process_expression(stmt.value, new_body)
+                #     stmt.value = ast.Name(id=temp_var_name, ctx=ast.Load())
+                #     new_body.extend(new_stmts)
                 new_body.append(stmt)
             else:
                 new_body.append(stmt)
